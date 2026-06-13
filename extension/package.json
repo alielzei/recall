@@ -1,0 +1,37 @@
+{
+  "name": "recall",
+  "displayName": "Recall",
+  "description": "Click a Claude Code notification to jump back to the exact terminal — and window — it came from.",
+  "version": "0.1.0",
+  "publisher": "alielzei",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alielzei/recall.git"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "terminal",
+    "focus",
+    "claude",
+    "claude code",
+    "notifications"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "recall.copyLink",
+        "title": "Recall: Copy focus link for active terminal"
+      }
+    ]
+  }
+}

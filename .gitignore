@@ -1,0 +1,7 @@
+# Build artifacts
+*.vsix
+node_modules/
+
+# Local / OS
+.DS_Store
+.claude/
