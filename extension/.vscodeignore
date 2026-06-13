@@ -1,0 +1,3 @@
+.vscodeignore
+.DS_Store
+**/*.map
