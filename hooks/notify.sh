@@ -63,14 +63,11 @@ if [ -n "$recall_id" ]; then
   [ -z "$recall_link" ] && recall_link="vscode://alielzei.recall/focus?id=${recall_id}"
 fi
 
-# Classify: does this actually need my input, or is it just attention?
-#   permission -> sound + persistent (stays until dismissed)
-#   your turn  -> silent  + auto-dismiss after a few seconds
-#   attention  -> sound   + auto-dismiss after a few seconds
+# Classify the message (for the title + sound).
 case "$msg" in
-  *permission*|*approve*|*Approve*)        kind="🔐 Permission needed"; sound="Morse"; timeout="" ;;
-  *waiting*|*input*|*Waiting*)             kind="💬 Your turn";          sound="";      timeout="8" ;;
-  *)                                       kind="🔔 Attention";          sound="Morse"; timeout="8" ;;
+  *permission*|*approve*|*Approve*)        kind="🔐 Permission needed"; sound="Morse" ;;
+  *waiting*|*input*|*Waiting*)             kind="💬 Your turn";          sound="" ;;
+  *)                                       kind="🔔 Attention";          sound="Morse" ;;
 esac
 
 # When we have a link, tell the user the notification is clickable.
@@ -82,10 +79,11 @@ args=(-title "$kind · $folder" -subtitle "$title" -message "${msg}${click_hint}
 # Click the notification -> focus the exact VSCode terminal it came from.
 [ -n "$recall_link" ] && args+=(-open "$recall_link")
 
-if [ -n "$timeout" ]; then
-  # Auto-dismiss: -timeout keeps terminal-notifier alive to close it, so background it.
-  ( terminal-notifier "${args[@]}" -timeout "$timeout" >/dev/null 2>&1 ) &
-else
-  # Persistent: no timeout, stays until dismissed (requires Alerts style — see README).
-  terminal-notifier "${args[@]}" 2>/dev/null || true
-fi
+# NOTE: we intentionally do NOT pass -timeout. terminal-notifier's -timeout *removes*
+# the notification when it fires, which also clears it from Notification Center.
+# Omitting it parks every notification in Notification Center until you click or
+# dismiss it, so you can go back to ones you missed. On-screen dwell is then governed
+# by the macOS notification style for terminal-notifier
+# (System Settings > Notifications > terminal-notifier): "Banners" auto-hide from the
+# screen but stay in the Center; "Alerts" stay on screen until dismissed.
+terminal-notifier "${args[@]}" 2>/dev/null || true
