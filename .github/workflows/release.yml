@@ -1,0 +1,56 @@
+name: Release
+
+# Tag a release to publish:
+#   1. bump "version" in extension/package.json
+#   2. git commit + git tag vX.Y.Z   (tag must match package.json version)
+#   3. git push --tags
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write   # for creating the GitHub Release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Verify tag matches package.json version
+        working-directory: extension
+        run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          echo "package.json=$PKG_VERSION  tag=$TAG_VERSION"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match extension/package.json version $PKG_VERSION"
+            exit 1
+          fi
+
+      - name: Package extension
+        working-directory: extension
+        run: npx --yes @vscode/vsce package -o "../recall-${GITHUB_REF_NAME}.vsix"
+
+      - name: Publish to VS Code Marketplace
+        working-directory: extension
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: npx --yes @vscode/vsce publish --packagePath "../recall-${GITHUB_REF_NAME}.vsix" -p "$VSCE_PAT"
+
+      - name: Publish to Open VSX
+        working-directory: extension
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: npx --yes ovsx publish "../recall-${GITHUB_REF_NAME}.vsix" -p "$OVSX_PAT"
+
+      - name: Create GitHub Release (attach the .vsix)
+        uses: softprops/action-gh-release@v2
+        with:
+          files: recall-${{ github.ref_name }}.vsix
+          generate_release_notes: true

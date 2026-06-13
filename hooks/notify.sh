@@ -73,7 +73,11 @@ case "$msg" in
   *)                                       kind="🔔 Attention";          sound="Morse"; timeout="8" ;;
 esac
 
-args=(-title "$kind · $folder" -subtitle "$title" -message "$msg")
+# When we have a link, tell the user the notification is clickable.
+click_hint=""
+[ -n "$recall_link" ] && click_hint=" — 👆 CLICK TO OPEN TERMINAL"
+
+args=(-title "$kind · $folder" -subtitle "$title" -message "${msg}${click_hint}")
 [ -n "$sound" ] && args+=(-sound "$sound")
 # Click the notification -> focus the exact VSCode terminal it came from.
 [ -n "$recall_link" ] && args+=(-open "$recall_link")
