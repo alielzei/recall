@@ -12,6 +12,11 @@
   "engines": {
     "vscode": "^1.90.0"
   },
+  "icon": "icon.png",
+  "galleryBanner": {
+    "color": "#4F46E5",
+    "theme": "dark"
+  },
   "categories": [
     "Other"
   ],
