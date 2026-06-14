@@ -1,6 +1,10 @@
-# Recall
+<p align="center">
+  <img src="docs/banner.png" alt="Recall" width="640">
+</p>
 
-**Click a Claude Code notification → jump straight back to the exact terminal it came from, in the right window.**
+<p align="center">
+  <b>Click a Claude Code notification → jump straight back to the exact terminal it came from, in the right window.</b>
+</p>
 
 When Claude Code needs your attention (a permission prompt, your turn, a finished task), Recall fires a native macOS notification. Clicking it focuses the precise integrated terminal that raised it — even if it's a different tab in a different VSCode window.
 
@@ -22,7 +26,7 @@ Claude notification ──> notify.sh (hook) ──> terminal-notifier  ──cl
                                    ~/.recall/windows/*.json     (per-window registry)
 ```
 
-1. **Extension** registers a `vscode://alielzei.recall/focus?id=<pid>&windowId=<N>` handler and publishes a per-window registry mapping each terminal's shell PID → a windowId-tagged URL. `windowId` routing ([VSCode PR #80260](https://github.com/microsoft/vscode/pull/80260)) sends the click to the correct window and raises it.
+1. **Extension** registers a `vscode://alielzei.recall/focus?id=<pid>&windowId=<N>` handler and publishes a per-window registry mapping each terminal's shell PID → a windowId-tagged URL. `windowId` routing sends the click to the correct window and raises it.
 2. **Notification hook** (`notify.sh`) resolves the terminal's PID, looks up its windowId-tagged link in the registry, and opens it via `terminal-notifier`.
 
 Only the extension can learn a window's id, so the registry is the bridge between "a notification fired in some shell" and "focus that shell's tab in its window."
@@ -30,9 +34,9 @@ Only the extension can learn a window's id, so the registry is the bridge betwee
 ## Requirements
 
 - macOS
-- [VSCode](https://code.visualstudio.com/) with the `code` CLI on PATH (*Shell Command: Install 'code' command in PATH*)
-- [`terminal-notifier`](https://github.com/julienXX/terminal-notifier) — `brew install terminal-notifier`
-- `jq` — `brew install jq`
+- [VSCode](https://code.visualstudio.com/)
+- [terminal-notifier](https://github.com/julienXX/terminal-notifier)
+- [jq](https://jqlang.github.io/jq/)
 - [Claude Code](https://claude.com/claude-code)
 
 ## Install
@@ -63,6 +67,14 @@ The installer builds + installs the extension, drops the hook at `~/.claude/hook
 - **Persistent notifications** (permission prompts) only stay on screen if terminal-notifier's notification style is set to **Alerts** (not Banners) in *System Settings → Notifications*.
 - **PID resolution** walks the process tree to the shell under VSCode's pty host. It's shell-agnostic (zsh/bash/fish) but may not resolve under tmux, `screen`, or remote-SSH shells.
 - **Optional shell snippet** (`shell/recall.zsh`) only adds a clickable link printed in the terminal and a `recall-<id>` tab title — not needed for notifications.
+
+## Support
+
+If Recall saved you some hunting, you can buy me a coffee ☕ — Bitcoin:
+
+```
+bc1qe0kdzuvhxx800gpf44ejym6dse2t2kwvds2z9f
+```
 
 ## License
 
