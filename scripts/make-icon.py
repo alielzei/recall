@@ -11,8 +11,8 @@ from PIL import Image, ImageDraw
 S = 1024                      # working resolution
 OUT = 256                     # final icon size
 R = 220                       # corner radius
-TL = (0x7C, 0x3A, 0xED)       # violet-600
-BR = (0x4F, 0x46, 0xE5)       # indigo-600
+TL = (0x33, 0x41, 0x55)       # slate-700
+BR = (0x0F, 0x17, 0x2A)       # slate-900
 WHITE = (0xFF, 0xFF, 0xFF)
 AMBER = (0xF5, 0x9E, 0x0B)
 
