@@ -9,6 +9,7 @@ input=$(cat)
 msg=$(printf '%s' "$input"  | jq -r '.message // "Claude needs your attention"')
 cwd=$(printf '%s' "$input"  | jq -r '.cwd // empty')
 tpath=$(printf '%s' "$input" | jq -r '.transcript_path // .transcriptPath // empty')
+sid=$(printf '%s' "$input"  | jq -r '.session_id // empty')
 
 # Folder name (fall back to the hook's own cwd)
 folder=$(basename "${cwd:-$PWD}")
@@ -78,6 +79,9 @@ args=(-title "$kind · $folder" -subtitle "$title" -message "${msg}${click_hint}
 [ -n "$sound" ] && args+=(-sound "$sound")
 # Click the notification -> focus the exact VSCode terminal it came from.
 [ -n "$recall_link" ] && args+=(-open "$recall_link")
+# Group by session: a newer notification replaces the older one for that session,
+# and the dismiss hook clears it by this id once you re-engage with the session.
+[ -n "$sid" ] && args+=(-group "$sid")
 
 # NOTE: we intentionally do NOT pass -timeout. terminal-notifier's -timeout *removes*
 # the notification when it fires, which also clears it from Notification Center.

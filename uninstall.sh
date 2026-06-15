@@ -3,9 +3,11 @@
 set -euo pipefail
 
 EXT_ID="alielzei.recall"
-HOOK_DEST="$HOME/.claude/hooks/recall-notify.sh"
+NOTIFY_DEST="$HOME/.claude/hooks/recall-notify.sh"
+DISMISS_DEST="$HOME/.claude/hooks/recall-dismiss.sh"
 SETTINGS="$HOME/.claude/settings.json"
-HOOK_CMD="bash \"$HOME/.claude/hooks/recall-notify.sh\""
+NOTIFY_CMD="bash \"$HOME/.claude/hooks/recall-notify.sh\""
+DISMISS_CMD="bash \"$HOME/.claude/hooks/recall-dismiss.sh\""
 
 say() { printf '\033[1;36mrecall\033[0m %s\n' "$*"; }
 
@@ -14,18 +16,23 @@ if command -v code >/dev/null; then
   code --uninstall-extension "$EXT_ID" >/dev/null 2>&1 || true
 fi
 
-say "removing the notification hook…"
-rm -f "$HOOK_DEST"
+say "removing the hook scripts…"
+rm -f "$NOTIFY_DEST" "$DISMISS_DEST"
 
 if [ -f "$SETTINGS" ] && command -v jq >/dev/null; then
-  say "removing the Notification hook from settings.json…"
-  tmp="$(mktemp)"
-  jq --arg cmd "$HOOK_CMD" '
-    if .hooks.Notification then
-      .hooks.Notification |= map(select( ((.hooks // []) | any(.command == $cmd)) | not ))
-      | (if (.hooks.Notification | length) == 0 then del(.hooks.Notification) else . end)
-    else . end
-  ' "$SETTINGS" > "$tmp" && mv "$tmp" "$SETTINGS"
+  say "removing the hooks from settings.json…"
+  remove_hook() {  # $1=event  $2=command
+    local tmp; tmp="$(mktemp)"
+    jq --arg ev "$1" --arg cmd "$2" '
+      if .hooks[$ev] then
+        .hooks[$ev] |= map(select( ((.hooks // []) | any(.command == $cmd)) | not ))
+        | (if (.hooks[$ev] | length) == 0 then del(.hooks[$ev]) else . end)
+      else . end
+    ' "$SETTINGS" > "$tmp" && mv "$tmp" "$SETTINGS"
+  }
+  remove_hook Notification     "$NOTIFY_CMD"
+  remove_hook PreToolUse       "$DISMISS_CMD"
+  remove_hook UserPromptSubmit "$DISMISS_CMD"
 fi
 
 say "removing the registry (~/.recall)…"

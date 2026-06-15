@@ -8,9 +8,11 @@ set -euo pipefail
 
 REPO_URL="https://github.com/alielzei/recall.git"
 EXT_ID="alielzei.recall"
-HOOK_DEST="$HOME/.claude/hooks/recall-notify.sh"
+NOTIFY_DEST="$HOME/.claude/hooks/recall-notify.sh"
+DISMISS_DEST="$HOME/.claude/hooks/recall-dismiss.sh"
 SETTINGS="$HOME/.claude/settings.json"
-HOOK_CMD="bash \"$HOME/.claude/hooks/recall-notify.sh\""
+NOTIFY_CMD="bash \"$HOME/.claude/hooks/recall-notify.sh\""
+DISMISS_CMD="bash \"$HOME/.claude/hooks/recall-dismiss.sh\""
 
 say() { printf '\033[1;36mrecall\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33mrecall\033[0m %s\n' "$*" >&2; }
@@ -42,24 +44,31 @@ VSIX="$(mktemp -d)/recall.vsix"
 say "installing the extension…"
 code --install-extension "$VSIX" --force >/dev/null
 
-# --- Install the notification hook ------------------------------------------
-say "installing the notification hook…"
-mkdir -p "$(dirname "$HOOK_DEST")"
-cp "$REPO/hooks/notify.sh" "$HOOK_DEST"
-chmod +x "$HOOK_DEST"
+# --- Install the hooks ------------------------------------------------------
+say "installing the notification hooks…"
+mkdir -p "$(dirname "$NOTIFY_DEST")"
+cp "$REPO/hooks/notify.sh"  "$NOTIFY_DEST"  && chmod +x "$NOTIFY_DEST"
+cp "$REPO/hooks/dismiss.sh" "$DISMISS_DEST" && chmod +x "$DISMISS_DEST"
 
-# --- Merge the Notification hook into settings.json (idempotent) ------------
-say "wiring the Claude Code Notification hook…"
+# --- Merge hooks into settings.json (idempotent) ----------------------------
+say "wiring the Claude Code hooks…"
 [ -f "$SETTINGS" ] || echo '{}' > "$SETTINGS"
-tmp="$(mktemp)"
-jq --arg cmd "$HOOK_CMD" '
-  .hooks //= {} |
-  .hooks.Notification //= [] |
-  if any(.hooks.Notification[]?; (.hooks[]?.command) == $cmd)
-  then .
-  else .hooks.Notification += [ { "hooks": [ { "type": "command", "command": $cmd } ] } ]
-  end
-' "$SETTINGS" > "$tmp" && mv "$tmp" "$SETTINGS"
+
+add_hook() {  # $1=event  $2=command  — append once; no-op if already present
+  local tmp; tmp="$(mktemp)"
+  jq --arg ev "$1" --arg cmd "$2" '
+    .hooks //= {} |
+    .hooks[$ev] //= [] |
+    if any(.hooks[$ev][]?; (.hooks[]?.command) == $cmd)
+    then .
+    else .hooks[$ev] += [ { "hooks": [ { "type": "command", "command": $cmd } ] } ]
+    end
+  ' "$SETTINGS" > "$tmp" && mv "$tmp" "$SETTINGS"
+}
+
+add_hook Notification     "$NOTIFY_CMD"    # fire the notification
+add_hook PreToolUse       "$DISMISS_CMD"   # tool ran after approval -> clear it
+add_hook UserPromptSubmit "$DISMISS_CMD"   # you came back and typed -> clear it
 
 say "done."
 echo
