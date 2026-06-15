@@ -2,7 +2,7 @@
   "name": "recall",
   "displayName": "Recall",
   "description": "Click a Claude Code notification to jump back to the exact terminal — and window — it came from.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "alielzei",
   "license": "MIT",
   "repository": {

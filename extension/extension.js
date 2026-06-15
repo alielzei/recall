@@ -2,6 +2,7 @@ const vscode = require('vscode');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const cp = require('child_process');
 
 const AUTHORITY = 'alielzei.recall';
 
@@ -14,6 +15,28 @@ const ID_RE = /recall-([A-Za-z0-9]+)/;
 // Shared cross-window registry: one file per window (named by ext-host pid).
 const REG_DIR = path.join(os.homedir(), '.recall', 'windows');
 const MY_FILE = path.join(REG_DIR, `${process.pid}.json`);
+const CFG = path.join(os.homedir(), '.recall', 'config.json');
+
+// Path to terminal-notifier. The extension host's PATH usually lacks Homebrew's
+// bin, so install.sh records the resolved path; fall back to common locations.
+let TN = null;
+function resolveNotifier() {
+  try {
+    const c = JSON.parse(fs.readFileSync(CFG, 'utf8'));
+    if (c.terminalNotifier && fs.existsSync(c.terminalNotifier)) return c.terminalNotifier;
+  } catch (_) {}
+  for (const p of ['/opt/homebrew/bin/terminal-notifier', '/usr/local/bin/terminal-notifier']) {
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
+}
+
+// Dismiss the macOS notification for a terminal (grouped by its pid) — called when
+// the user brings that terminal into focus, so a stale notification clears at once.
+function dismiss(pid) {
+  if (!TN || pid == null) return;
+  cp.execFile(TN, ['-remove', String(pid)], () => {});
+}
 
 let channel;
 function out(msg) {
@@ -110,6 +133,8 @@ async function focusSession(id) {
 function activate(context) {
   channel = vscode.window.createOutputChannel('Recall');
   out(`activated (extHost pid ${process.pid})`);
+  TN = resolveNotifier();
+  out(`terminal-notifier: ${TN || '(not found — focus-dismiss disabled)'}`);
   fs.mkdirSync(REG_DIR, { recursive: true });
   cleanStaleFiles();
   publish();
@@ -119,9 +144,18 @@ function activate(context) {
     vscode.window.onDidOpenTerminal(() => setTimeout(publish, 800)),
     vscode.window.onDidCloseTerminal(() => publish()),
     // Republish on focus / active-terminal change so coverage self-heals and the
-    // windowId stays fresh for whichever window the user is actually in.
-    vscode.window.onDidChangeWindowState((s) => { if (s.focused) publish(); }),
-    vscode.window.onDidChangeActiveTerminal(() => publish()),
+    // windowId stays fresh. Also dismiss the focused terminal's notification — this
+    // is the "I brought the terminal back" signal the Claude hooks can't see.
+    vscode.window.onDidChangeWindowState((s) => {
+      if (!s.focused) return;
+      publish();
+      const t = vscode.window.activeTerminal;
+      if (t) t.processId.then(dismiss);
+    }),
+    vscode.window.onDidChangeActiveTerminal((t) => {
+      publish();
+      if (t) t.processId.then(dismiss);
+    }),
     vscode.window.registerUriHandler({
       async handleUri(uri) {
         out(`handleUri: ${uri.toString()}`);

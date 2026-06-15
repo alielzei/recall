@@ -50,6 +50,13 @@ mkdir -p "$(dirname "$NOTIFY_DEST")"
 cp "$REPO/hooks/notify.sh"  "$NOTIFY_DEST"  && chmod +x "$NOTIFY_DEST"
 cp "$REPO/hooks/dismiss.sh" "$DISMISS_DEST" && chmod +x "$DISMISS_DEST"
 
+# --- Record terminal-notifier's path so the extension can shell out to it ----
+# (the extension host's PATH usually lacks Homebrew's bin)
+mkdir -p "$HOME/.recall"
+TN_PATH="$(command -v terminal-notifier || true)"
+printf '{\n  "terminalNotifier": "%s"\n}\n' "$TN_PATH" > "$HOME/.recall/config.json"
+[ -n "$TN_PATH" ] && say "terminal-notifier: $TN_PATH" || warn "terminal-notifier not found; focus-dismiss will be disabled until installed"
+
 # --- Merge hooks into settings.json (idempotent) ----------------------------
 say "wiring the Claude Code hooks…"
 [ -f "$SETTINGS" ] || echo '{}' > "$SETTINGS"
