@@ -131,7 +131,15 @@ const DASHBOARD_HTML = `<!doctype html><html><head><meta charset="utf-8">
 <main id="list"></main>
 <script>
 const order={waiting:0,working:1,idle:2};
-async function test(){const b=document.getElementById('test');const o=b.textContent;b.textContent='Sent ✓';setTimeout(()=>b.textContent=o,1500);try{await fetch('/api/test')}catch(e){}}
+async function test(){
+  const b=document.getElementById('test');const o=b.textContent;
+  if(!('Notification' in window)){b.textContent='No Notification API';setTimeout(()=>b.textContent=o,1800);return;}
+  if(Notification.permission!=='granted'){const p=await Notification.requestPermission();if(p!=='granted'){b.textContent='Allow notifications first';setTimeout(()=>b.textContent=o,2000);return;}}
+  let url=null;try{url=(await (await fetch('/api/test')).json()).url}catch(e){}
+  const n=new Notification('Recall — test',{body:'Browser notification — click to focus the terminal.'});
+  n.onclick=()=>{window.focus();if(url)location.href=url;};
+  b.textContent='Sent ✓';setTimeout(()=>b.textContent=o,1500);
+}
 async function tick(){
   let data=[]; try{data=await (await fetch('/api/sessions')).json()}catch(e){}
   data.sort((a,b)=>(order[a.state]??9)-(order[b.state]??9)||b.ts-a.ts);
@@ -159,10 +167,15 @@ function startDashboard() {
       return;
     }
     if (req.url && req.url.startsWith('/api/test')) {
-      postTest().then((ok) => {
-        res.writeHead(ok ? 200 : 503, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok }));
-      });
+      // Return a focus URL for this window's active terminal so the page can fire a
+      // browser notification whose click jumps to the terminal.
+      (async () => {
+        let url = null;
+        const active = vscode.window.activeTerminal;
+        if (active) { try { url = await focusUrl(await active.processId); } catch (_) {} }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ url }));
+      })();
       return;
     }
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
