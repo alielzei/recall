@@ -10,9 +10,11 @@ REPO_URL="https://github.com/alielzei/recall.git"
 EXT_ID="alielzei.recall"
 NOTIFY_DEST="$HOME/.claude/hooks/recall-notify.sh"
 DISMISS_DEST="$HOME/.claude/hooks/recall-dismiss.sh"
+SESSION_DEST="$HOME/.claude/hooks/recall-session.sh"
 SETTINGS="$HOME/.claude/settings.json"
 NOTIFY_CMD="bash \"$HOME/.claude/hooks/recall-notify.sh\""
 DISMISS_CMD="bash \"$HOME/.claude/hooks/recall-dismiss.sh\""
+SESSION_CMD="bash \"$HOME/.claude/hooks/recall-session.sh\""
 
 say() { printf '\033[1;36mrecall\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33mrecall\033[0m %s\n' "$*" >&2; }
@@ -46,6 +48,7 @@ say "installing the notification hooks…"
 mkdir -p "$(dirname "$NOTIFY_DEST")"
 cp "$REPO/hooks/notify.sh"  "$NOTIFY_DEST"  && chmod +x "$NOTIFY_DEST"
 cp "$REPO/hooks/dismiss.sh" "$DISMISS_DEST" && chmod +x "$DISMISS_DEST"
+cp "$REPO/hooks/session.sh" "$SESSION_DEST" && chmod +x "$SESSION_DEST"
 
 # --- Build & install the notifier helper ------------------------------------
 # A small signed UNUserNotificationCenter app. terminal-notifier's legacy click
@@ -96,6 +99,13 @@ add_hook UserPromptSubmit "$DISMISS_CMD"   # you came back and typed -> clear it
 # Focus-dismiss is handled in-extension on terminal focus. PreToolUse fires on every
 # tool call (too often), so drop it if an older install added it.
 remove_hook PreToolUse    "$DISMISS_CMD"
+
+# Session tracking (event-sourced state for the dashboard).
+add_hook SessionStart     "$SESSION_CMD"
+add_hook SessionEnd       "$SESSION_CMD"
+add_hook UserPromptSubmit "$SESSION_CMD"
+add_hook Stop             "$SESSION_CMD"
+add_hook Notification     "$SESSION_CMD"
 
 say "done."
 echo

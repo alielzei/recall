@@ -2,7 +2,7 @@
   "name": "recall",
   "displayName": "Recall",
   "description": "Click a Claude Code notification to jump back to the exact terminal — and window — it came from.",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "publisher": "alielzei",
   "license": "MIT",
   "repository": {
@@ -36,6 +36,10 @@
       {
         "command": "recall.copyLink",
         "title": "Recall: Copy focus link for active terminal"
+      },
+      {
+        "command": "recall.openDashboard",
+        "title": "Recall: Open Dashboard"
       }
     ]
   }
