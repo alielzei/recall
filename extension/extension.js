@@ -38,6 +38,23 @@ function dismiss(pid) {
   cp.execFile(NOTIFIER, ['remove', '--id', String(pid)], () => {});
 }
 
+// Post a test notification (debug) via the helper. Clicking it focuses this
+// window's active terminal, exercising the whole post -> click -> focus path.
+async function postTest() {
+  if (!NOTIFIER) return false;
+  const app = path.dirname(path.dirname(path.dirname(NOTIFIER))); // .../RecallNotifier.app
+  const folder = (vscode.workspace.workspaceFolders || [])[0];
+  const args = ['-n', app, '--args', 'post',
+    '--title', 'Recall — test',
+    '--subtitle', folder ? folder.name : 'Recall',
+    '--message', 'Test notification — click to focus this terminal.',
+    '--id', 'recall-test', '--sound'];
+  const active = vscode.window.activeTerminal;
+  if (active) { try { args.push('--url', await focusUrl(await active.processId)); } catch (_) {} }
+  cp.execFile('open', args, () => {});
+  return true;
+}
+
 // ---- Dashboard: a local web UI listing live Claude sessions + status ----------
 // Claude Code has no "list sessions" API, so session state is event-sourced by the
 // hooks into ~/.recall/sessions/. This server joins that with the per-window
@@ -104,11 +121,17 @@ const DASHBOARD_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .meta{flex:1;min-width:0}
   .folder{font-weight:600}.sub{color:#94a3b8;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .empty{color:#64748b;padding:40px 0;text-align:center}
+  button{margin-left:auto;background:#334155;color:#e2e8f0;border:1px solid #475569;border-radius:8px;padding:7px 12px;font:13px inherit;cursor:pointer}
+  button:hover{background:#475569}
+  #count{color:#94a3b8;font-size:13px;margin-left:14px}
 </style></head><body>
-<header><span class="dot"></span><h1>Recall</h1><span class="sub" style="margin-left:auto" id="count"></span></header>
+<header><span class="dot"></span><h1>Recall</h1>
+<button id="test" onclick="test()">Send test notification</button>
+<span id="count"></span></header>
 <main id="list"></main>
 <script>
 const order={waiting:0,working:1,idle:2};
+async function test(){const b=document.getElementById('test');const o=b.textContent;b.textContent='Sent ✓';setTimeout(()=>b.textContent=o,1500);try{await fetch('/api/test')}catch(e){}}
 async function tick(){
   let data=[]; try{data=await (await fetch('/api/sessions')).json()}catch(e){}
   data.sort((a,b)=>(order[a.state]??9)-(order[b.state]??9)||b.ts-a.ts);
@@ -133,6 +156,13 @@ function startDashboard() {
     if (req.url && req.url.startsWith('/api/sessions')) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(listSessions()));
+      return;
+    }
+    if (req.url && req.url.startsWith('/api/test')) {
+      postTest().then((ok) => {
+        res.writeHead(ok ? 200 : 503, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok }));
+      });
       return;
     }
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -296,6 +326,10 @@ function activate(context) {
     }),
     vscode.commands.registerCommand('recall.openDashboard', () => {
       vscode.env.openExternal(vscode.Uri.parse(`http://127.0.0.1:${DASH_PORT}`));
+    }),
+    vscode.commands.registerCommand('recall.sendTest', async () => {
+      const ok = await postTest();
+      vscode.window.showInformationMessage(ok ? 'Recall: test notification sent' : 'Recall: notifier not found');
     }),
     statusItem,
     { dispose: () => { if (dashServer) dashServer.close(); } }
