@@ -121,24 +121,44 @@ const DASHBOARD_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .meta{flex:1;min-width:0}
   .folder{font-weight:600}.sub{color:#94a3b8;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .empty{color:#64748b;padding:40px 0;text-align:center}
-  button{margin-left:auto;background:#334155;color:#e2e8f0;border:1px solid #475569;border-radius:8px;padding:7px 12px;font:13px inherit;cursor:pointer}
+  button{background:#334155;color:#e2e8f0;border:1px solid #475569;border-radius:8px;padding:7px 12px;font:13px inherit;cursor:pointer}
   button:hover{background:#475569}
+  #test{margin-left:auto}
+  #auto{margin-left:8px}
+  #auto.on{background:#7c2d12;border-color:#9a3412;color:#fed7aa}
   #count{color:#94a3b8;font-size:13px;margin-left:14px}
 </style></head><body>
 <header><span class="dot"></span><h1>Recall</h1>
 <button id="test" onclick="test()">Send test notification</button>
+<button id="auto" onclick="toggleAuto()">Auto-test: off</button>
 <span id="count"></span></header>
 <main id="list"></main>
 <script>
 const order={waiting:0,working:1,idle:2};
+async function ensurePerm(){
+  if(!('Notification' in window))return false;
+  if(Notification.permission==='granted')return true;
+  return (await Notification.requestPermission())==='granted';
+}
+async function fetchUrl(){try{return (await (await fetch('/api/test')).json()).url}catch(e){return null}}
+function fire(title,body,url,opts){const n=new Notification(title,Object.assign({body},opts||{}));n.onclick=()=>{window.focus();if(url)location.href=url;};}
 async function test(){
   const b=document.getElementById('test');const o=b.textContent;
-  if(!('Notification' in window)){b.textContent='No Notification API';setTimeout(()=>b.textContent=o,1800);return;}
-  if(Notification.permission!=='granted'){const p=await Notification.requestPermission();if(p!=='granted'){b.textContent='Allow notifications first';setTimeout(()=>b.textContent=o,2000);return;}}
-  let url=null;try{url=(await (await fetch('/api/test')).json()).url}catch(e){}
-  const n=new Notification('Recall — test',{body:'Browser notification — click to focus the terminal.'});
-  n.onclick=()=>{window.focus();if(url)location.href=url;};
+  if(!(await ensurePerm())){b.textContent='Allow notifications first';setTimeout(()=>b.textContent=o,2000);return;}
+  fire('Recall — test','One-off browser notification — click to focus the terminal.',await fetchUrl());
   b.textContent='Sent ✓';setTimeout(()=>b.textContent=o,1500);
+}
+let autoTimer=null,autoN=0,autoUrl=null;
+async function fireAuto(){
+  autoN++;
+  if(!autoUrl)autoUrl=await fetchUrl();
+  fire('Recall — AUTO #'+autoN,'Auto-test every 5s — click to focus the terminal.',autoUrl,{tag:'recall-auto',renotify:true});
+}
+async function toggleAuto(){
+  const b=document.getElementById('auto');
+  if(autoTimer){clearInterval(autoTimer);autoTimer=null;b.classList.remove('on');b.textContent='Auto-test: off';return;}
+  if(!(await ensurePerm())){b.textContent='Allow notifications first';setTimeout(()=>b.textContent='Auto-test: off',2000);return;}
+  autoN=0;autoUrl=null;fireAuto();autoTimer=setInterval(fireAuto,5000);b.classList.add('on');b.textContent='Auto-test: ON (stop)';
 }
 async function tick(){
   let data=[]; try{data=await (await fetch('/api/sessions')).json()}catch(e){}
