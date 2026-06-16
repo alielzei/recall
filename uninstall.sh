@@ -35,6 +35,9 @@ if [ -f "$SETTINGS" ] && command -v jq >/dev/null; then
   remove_hook UserPromptSubmit "$DISMISS_CMD"
 fi
 
+say "removing the notifier helper…"
+rm -rf "$HOME/Applications/RecallNotifier.app"
+
 say "removing the registry (~/.recall)…"
 rm -rf "$HOME/.recall"
 

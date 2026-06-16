@@ -26,6 +26,8 @@ resolve_recall_id() {
 }
 
 recall_id=$(resolve_recall_id)
-# Background it so this never adds latency to the tool call; no-op if nothing grouped.
-[ -n "$recall_id" ] && ( terminal-notifier -remove "$recall_id" >/dev/null 2>&1 & )
+# Clear the notification for this terminal via the helper (no-op if none). Run the
+# inner binary directly (removal needs no auth) and background it for zero latency.
+BIN="$HOME/Applications/RecallNotifier.app/Contents/MacOS/RecallNotifier"
+[ -n "$recall_id" ] && [ -x "$BIN" ] && ( "$BIN" remove --id "$recall_id" >/dev/null 2>&1 & )
 exit 0

@@ -30,12 +30,9 @@ else
 fi
 
 # --- Dependency checks -------------------------------------------------------
-command -v code >/dev/null || die "the 'code' CLI is not on PATH. In VSCode run: Shell Command: Install 'code' command in PATH."
-command -v jq >/dev/null   || die "jq is required. Install it (macOS: brew install jq)."
-if ! command -v terminal-notifier >/dev/null; then
-  warn "terminal-notifier not found — notifications won't show until you install it:"
-  warn "    brew install terminal-notifier"
-fi
+command -v code >/dev/null   || die "the 'code' CLI is not on PATH. In VSCode run: Shell Command: Install 'code' command in PATH."
+command -v jq >/dev/null     || die "jq is required (macOS: brew install jq)."
+command -v swiftc >/dev/null || die "swiftc is required to build the notifier. Install Xcode Command Line Tools: xcode-select --install"
 
 # --- Build & install the extension ------------------------------------------
 say "building the VSCode extension…"
@@ -50,12 +47,23 @@ mkdir -p "$(dirname "$NOTIFY_DEST")"
 cp "$REPO/hooks/notify.sh"  "$NOTIFY_DEST"  && chmod +x "$NOTIFY_DEST"
 cp "$REPO/hooks/dismiss.sh" "$DISMISS_DEST" && chmod +x "$DISMISS_DEST"
 
-# --- Record terminal-notifier's path so the extension can shell out to it ----
-# (the extension host's PATH usually lacks Homebrew's bin)
+# --- Build & install the notifier helper ------------------------------------
+# A small signed UNUserNotificationCenter app. terminal-notifier's legacy click
+# handling is dead on current macOS; this delivers native, clickable, persistent
+# notifications. It MUST live in a stable location (~/Applications) or macOS refuses
+# notification authorization.
+say "building the notifier helper…"
+NOTIFIER_APP="$HOME/Applications/RecallNotifier.app"
+mkdir -p "$HOME/Applications"
+bash "$REPO/notifier/build.sh" "$HOME/Applications" >/dev/null
+LSREG="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+[ -x "$LSREG" ] && "$LSREG" -f "$NOTIFIER_APP" 2>/dev/null || true
 mkdir -p "$HOME/.recall"
-TN_PATH="$(command -v terminal-notifier || true)"
-printf '{\n  "terminalNotifier": "%s"\n}\n' "$TN_PATH" > "$HOME/.recall/config.json"
-[ -n "$TN_PATH" ] && say "terminal-notifier: $TN_PATH" || warn "terminal-notifier not found; focus-dismiss will be disabled until installed"
+printf '{\n  "notifierApp": "%s"\n}\n' "$NOTIFIER_APP" > "$HOME/.recall/config.json"
+# Trigger the one-time notification-permission prompt with a welcome notification.
+say "requesting notification permission (click Allow if macOS prompts)…"
+open -n "$NOTIFIER_APP" --args post --title "Recall" \
+  --message "Notifications enabled — click one to jump to its terminal." --id recall-welcome 2>/dev/null || true
 
 # --- Merge hooks into settings.json (idempotent) ----------------------------
 say "wiring the Claude Code hooks…"
@@ -73,9 +81,21 @@ add_hook() {  # $1=event  $2=command  — append once; no-op if already present
   ' "$SETTINGS" > "$tmp" && mv "$tmp" "$SETTINGS"
 }
 
+remove_hook() {  # $1=event $2=command — drop matching entries (for migrations)
+  local tmp; tmp="$(mktemp)"
+  jq --arg ev "$1" --arg cmd "$2" '
+    if .hooks[$ev] then
+      .hooks[$ev] |= map(select( ((.hooks // []) | any(.command == $cmd)) | not ))
+      | (if (.hooks[$ev] | length) == 0 then del(.hooks[$ev]) else . end)
+    else . end
+  ' "$SETTINGS" > "$tmp" && mv "$tmp" "$SETTINGS"
+}
+
 add_hook Notification     "$NOTIFY_CMD"    # fire the notification
-add_hook PreToolUse       "$DISMISS_CMD"   # tool ran after approval -> clear it
 add_hook UserPromptSubmit "$DISMISS_CMD"   # you came back and typed -> clear it
+# Focus-dismiss is handled in-extension on terminal focus. PreToolUse fires on every
+# tool call (too often), so drop it if an older install added it.
+remove_hook PreToolUse    "$DISMISS_CMD"
 
 say "done."
 echo

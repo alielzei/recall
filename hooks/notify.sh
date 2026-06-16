@@ -74,20 +74,23 @@ esac
 click_hint=""
 [ -n "$recall_link" ] && click_hint=" — 👆 CLICK TO OPEN TERMINAL"
 
-args=(-title "$kind · $folder" -subtitle "$title" -message "${msg}${click_hint}")
-[ -n "$sound" ] && args+=(-sound "$sound")
-# Click the notification -> focus the exact VSCode terminal it came from.
-[ -n "$recall_link" ] && args+=(-open "$recall_link")
-# Group by terminal pid: a newer notification replaces the older one for that
-# terminal, and both the dismiss hook AND the extension (on terminal focus) clear it
-# by this same pid.
-[ -n "$recall_id" ] && args+=(-group "$recall_id")
+# Post via RecallNotifier.app — a signed helper using the modern UserNotifications
+# framework. terminal-notifier's legacy NSUserNotification click handling is dead on
+# current macOS; this delivers real, clickable, persistent notifications. The helper
+# must run from a stable location (~/Applications) or macOS refuses notification auth.
+# Identifier = terminal pid, so a newer notification replaces the older one and the
+# dismiss paths (hook + extension on focus) can clear it by pid.
+APP="$HOME/Applications/RecallNotifier.app"
+post_args=(post --title "$kind · $folder" --subtitle "$title" --message "${msg}${click_hint}")
+[ -n "$recall_link" ] && post_args+=(--url "$recall_link")
+[ -n "$recall_id" ]   && post_args+=(--id "$recall_id")
+[ -n "$sound" ]       && post_args+=(--sound)
 
-# NOTE: we intentionally do NOT pass -timeout. terminal-notifier's -timeout *removes*
-# the notification when it fires, which also clears it from Notification Center.
-# Omitting it parks every notification in Notification Center until you click or
-# dismiss it, so you can go back to ones you missed. On-screen dwell is then governed
-# by the macOS notification style for terminal-notifier
-# (System Settings > Notifications > terminal-notifier): "Banners" auto-hide from the
-# screen but stay in the Center; "Alerts" stay on screen until dismissed.
-terminal-notifier "${args[@]}" 2>/dev/null || true
+if [ -d "$APP" ]; then
+  open -n "$APP" --args "${post_args[@]}"
+elif command -v terminal-notifier >/dev/null; then
+  # Fallback (display only; click won't work on current macOS).
+  tn=(-title "$kind · $folder" -subtitle "$title" -message "${msg}${click_hint}")
+  [ -n "$sound" ] && tn+=(-sound "Morse")
+  terminal-notifier "${tn[@]}" 2>/dev/null || true
+fi

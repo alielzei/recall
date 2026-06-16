@@ -17,25 +17,24 @@ const REG_DIR = path.join(os.homedir(), '.recall', 'windows');
 const MY_FILE = path.join(REG_DIR, `${process.pid}.json`);
 const CFG = path.join(os.homedir(), '.recall', 'config.json');
 
-// Path to terminal-notifier. The extension host's PATH usually lacks Homebrew's
-// bin, so install.sh records the resolved path; fall back to common locations.
-let TN = null;
+// Path to the RecallNotifier helper binary (signed UNUserNotificationCenter app).
+// install.sh records the .app path; fall back to the standard ~/Applications spot.
+let NOTIFIER = null;
 function resolveNotifier() {
+  const fromApp = (app) => path.join(app, 'Contents/MacOS/RecallNotifier');
   try {
     const c = JSON.parse(fs.readFileSync(CFG, 'utf8'));
-    if (c.terminalNotifier && fs.existsSync(c.terminalNotifier)) return c.terminalNotifier;
+    if (c.notifierApp && fs.existsSync(fromApp(c.notifierApp))) return fromApp(c.notifierApp);
   } catch (_) {}
-  for (const p of ['/opt/homebrew/bin/terminal-notifier', '/usr/local/bin/terminal-notifier']) {
-    if (fs.existsSync(p)) return p;
-  }
-  return null;
+  const probe = fromApp(path.join(os.homedir(), 'Applications/RecallNotifier.app'));
+  return fs.existsSync(probe) ? probe : null;
 }
 
-// Dismiss the macOS notification for a terminal (grouped by its pid) — called when
-// the user brings that terminal into focus, so a stale notification clears at once.
+// Dismiss the notification for a terminal (id = its pid) — called when the user
+// brings that terminal into focus, so a stale notification clears at once.
 function dismiss(pid) {
-  if (!TN || pid == null) return;
-  cp.execFile(TN, ['-remove', String(pid)], () => {});
+  if (!NOTIFIER || pid == null) return;
+  cp.execFile(NOTIFIER, ['remove', '--id', String(pid)], () => {});
 }
 
 let channel;
@@ -133,8 +132,8 @@ async function focusSession(id) {
 function activate(context) {
   channel = vscode.window.createOutputChannel('Recall');
   out(`activated (extHost pid ${process.pid})`);
-  TN = resolveNotifier();
-  out(`terminal-notifier: ${TN || '(not found — focus-dismiss disabled)'}`);
+  NOTIFIER = resolveNotifier();
+  out(`notifier: ${NOTIFIER || '(not found — focus-dismiss disabled)'}`);
   fs.mkdirSync(REG_DIR, { recursive: true });
   cleanStaleFiles();
   publish();
